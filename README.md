@@ -46,3 +46,9 @@ See the lab brief for the full list: your written analysis (of the code and the
 tests), the refactored code, robust exception handling, a real test suite, a
 short rationale, and one improvement beyond the brief. You will talk through your
 work in a live review.
+
+## Written work
+
+- [ANALYSIS.md](ANALYSIS.md) — pre-refactor review of the inherited code and tests.
+- [RATIONALE.md](RATIONALE.md) — refactoring decisions, what was kept/fixed/rewritten, and the improvement beyond the brief.
+

@@ -1,6 +1,11 @@
 package com.tidewater.freight;
 
 import com.tidewater.freight.exception.ShippingCalculationException;
+import com.tidewater.freight.pricing.DomesticZonePolicy;
+import com.tidewater.freight.pricing.InternationalZonePolicy;
+import com.tidewater.freight.pricing.RegionalZonePolicy;
+import com.tidewater.freight.pricing.ZonePolicyProvider;
+import com.tidewater.freight.pricing.ZonePolicyRegistry;
 import com.tidewater.freight.validation.ServiceLevelRule;
 import com.tidewater.freight.validation.ShipmentValidator;
 import com.tidewater.freight.validation.WeightRule;
@@ -10,8 +15,12 @@ import java.util.List;
 
 public class Demo {
     public static void main(String[] args) {
+        ZonePolicyProvider policies = new ZonePolicyRegistry(List.of(
+                new DomesticZonePolicy(),
+                new RegionalZonePolicy(),
+                new InternationalZonePolicy()));
         ShippingCalculator calculator = new ShippingCalculator(
-                new InMemoryRateRepository(),
+                policies,
                 new ShipmentValidator(List.of(
                         new ZoneRequiredRule(),
                         new WeightRule(),

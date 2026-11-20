@@ -2,6 +2,12 @@ package com.tidewater.freight;
 
 import com.tidewater.freight.exception.InvalidShipmentException;
 import com.tidewater.freight.exception.UnknownZoneException;
+import com.tidewater.freight.pricing.DomesticZonePolicy;
+import com.tidewater.freight.pricing.InternationalZonePolicy;
+import com.tidewater.freight.pricing.RegionalZonePolicy;
+import com.tidewater.freight.pricing.ZonePolicy;
+import com.tidewater.freight.pricing.ZonePolicyProvider;
+import com.tidewater.freight.pricing.ZonePolicyRegistry;
 import com.tidewater.freight.validation.ServiceLevelRule;
 import com.tidewater.freight.validation.ShipmentValidator;
 import com.tidewater.freight.validation.ValidationError;
@@ -28,14 +34,17 @@ class ShippingCalculatorTest {
 
     private static final double EPS = 1e-9;
 
+    private record FixedZonePolicy(String zone, double ratePerKg, double handlingFee) implements ZonePolicy {
+    }
+
     @Mock
-    private RateRepository repository;
+    private ZonePolicyProvider policies;
 
     private ShippingCalculator calculator;
 
     @BeforeEach
     void setUp() {
-        calculator = new ShippingCalculator(repository, defaultValidator());
+        calculator = new ShippingCalculator(policies, defaultValidator());
     }
 
     private static ShipmentValidator defaultValidator() {
@@ -45,52 +54,75 @@ class ShippingCalculatorTest {
                 new ServiceLevelRule()));
     }
 
+    private static ZonePolicyRegistry defaultRegistry() {
+        return new ZonePolicyRegistry(List.of(
+                new DomesticZonePolicy(),
+                new RegionalZonePolicy(),
+                new InternationalZonePolicy()));
+    }
+
     @Test
     void calculatesDomesticStandardCostExactly() {
-        when(repository.findRate("DOMESTIC")).thenReturn(5.0);
+        when(policies.find("DOMESTIC")).thenReturn(new FixedZonePolicy("DOMESTIC", 5.0, 0.0));
 
         assertEquals(50.0, calculator.calculateCost(new ShipmentRequest("DOMESTIC", 10, "STANDARD")), EPS);
     }
 
     @Test
     void calculatesRegionalStandardCostWithHandlingFee() {
-        when(repository.findRate("REGIONAL")).thenReturn(8.0);
+        when(policies.find("REGIONAL")).thenReturn(new FixedZonePolicy("REGIONAL", 8.0, 10.0));
 
         assertEquals(50.0, calculator.calculateCost(new ShipmentRequest("REGIONAL", 5, "STANDARD")), EPS);
     }
 
     @Test
     void calculatesInternationalExpressCostWithAllSurcharges() {
-        when(repository.findRate("INTERNATIONAL")).thenReturn(15.0);
+        when(policies.find("INTERNATIONAL")).thenReturn(new FixedZonePolicy("INTERNATIONAL", 15.0, 25.0));
 
         assertEquals(967.5, calculator.calculateCost(new ShipmentRequest("INTERNATIONAL", 40, "EXPRESS")), EPS);
     }
 
     @Test
     void appliesExpressMultiplierWithoutSurcharges() {
-        when(repository.findRate("DOMESTIC")).thenReturn(5.0);
+        when(policies.find("DOMESTIC")).thenReturn(new FixedZonePolicy("DOMESTIC", 5.0, 0.0));
 
         assertEquals(75.0, calculator.calculateCost(new ShipmentRequest("DOMESTIC", 10, "EXPRESS")), EPS);
     }
 
     @Test
     void heavySurchargeStartsAboveThirtyKilograms() {
-        when(repository.findRate("REGIONAL")).thenReturn(8.0);
+        when(policies.find("REGIONAL")).thenReturn(new FixedZonePolicy("REGIONAL", 8.0, 10.0));
 
         assertEquals(250.0, calculator.calculateCost(new ShipmentRequest("REGIONAL", 30, "STANDARD")), EPS);
         assertEquals(278.0, calculator.calculateCost(new ShipmentRequest("REGIONAL", 31, "STANDARD")), EPS);
     }
 
     @Test
-    void worksWithTheRealInMemoryRepository() {
-        ShippingCalculator real = new ShippingCalculator(new InMemoryRateRepository(), defaultValidator());
+    void worksWithTheRealPolicyRegistry() {
+        ShippingCalculator real = new ShippingCalculator(defaultRegistry(), defaultValidator());
 
         assertEquals(50.0, real.calculateCost(new ShipmentRequest("DOMESTIC", 10, "STANDARD")), EPS);
+        assertEquals(50.0, real.calculateCost(new ShipmentRequest("REGIONAL", 5, "STANDARD")), EPS);
+        assertEquals(967.5, real.calculateCost(new ShipmentRequest("INTERNATIONAL", 40, "EXPRESS")), EPS);
+    }
+
+    @Test
+    void newZonePolicyWorksWithoutChangingTheCalculator() {
+        ZonePolicy moon = new FixedZonePolicy("MOON", 12.0, 3.0);
+        ZonePolicyProvider extended = zone -> {
+            if (zone.equals("MOON")) {
+                return moon;
+            }
+            return defaultRegistry().find(zone);
+        };
+        ShippingCalculator real = new ShippingCalculator(extended, defaultValidator());
+
+        assertEquals(123.0, real.calculateCost(new ShipmentRequest("MOON", 10, "STANDARD")), EPS);
     }
 
     @Test
     void unknownZoneThrowsInsteadOfReturningZero() {
-        ShippingCalculator real = new ShippingCalculator(new InMemoryRateRepository(), defaultValidator());
+        ShippingCalculator real = new ShippingCalculator(defaultRegistry(), defaultValidator());
 
         UnknownZoneException ex = assertThrows(UnknownZoneException.class,
                 () -> real.calculateCost(new ShipmentRequest("MOON", 10, "STANDARD")));
@@ -98,9 +130,9 @@ class ShippingCalculatorTest {
     }
 
     @Test
-    void repositoryFailurePropagatesWithItsCause() {
-        IllegalStateException failure = new IllegalStateException("rate service unavailable");
-        when(repository.findRate("DOMESTIC")).thenThrow(failure);
+    void providerFailurePropagatesWithItsCause() {
+        IllegalStateException failure = new IllegalStateException("policy service unavailable");
+        when(policies.find("DOMESTIC")).thenThrow(failure);
 
         IllegalStateException thrown = assertThrows(IllegalStateException.class,
                 () -> calculator.calculateCost(new ShipmentRequest("DOMESTIC", 10, "STANDARD")));
@@ -115,7 +147,7 @@ class ShippingCalculatorTest {
                 () -> calculator.calculateCost(new ShipmentRequest(zone, 10, "STANDARD")));
 
         assertTrue(ex.errors().contains(ValidationError.ZONE_REQUIRED));
-        verifyNoInteractions(repository);
+        verifyNoInteractions(policies);
     }
 
     static Stream<Double> invalidWeights() {
@@ -129,7 +161,7 @@ class ShippingCalculatorTest {
                 () -> calculator.calculateCost(new ShipmentRequest("DOMESTIC", weight, "STANDARD")));
 
         assertTrue(ex.errors().contains(ValidationError.WEIGHT_INVALID));
-        verifyNoInteractions(repository);
+        verifyNoInteractions(policies);
     }
 
     @ParameterizedTest
@@ -140,7 +172,7 @@ class ShippingCalculatorTest {
                 () -> calculator.calculateCost(new ShipmentRequest("DOMESTIC", 10, serviceLevel)));
 
         assertTrue(ex.errors().contains(ValidationError.SERVICE_LEVEL_INVALID));
-        verifyNoInteractions(repository);
+        verifyNoInteractions(policies);
     }
 
     @Test

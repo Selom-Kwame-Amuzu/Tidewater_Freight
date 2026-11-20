@@ -25,8 +25,8 @@
 
 ## <u>Design constraints</u>
 
-- **<u>Extensibility:</u>** a new shipping zone with its own rate rules is coming; adding it must not require rewriting existing logic.
-- **<u>Structure:</u>** separate responsibilities, inject dependencies instead of hard-wiring them, and never swallow or hide failures.
-- **<u>Known defect:</u>** `ShippingCalculator` hardcodes `new InMemoryRateRepository()` and catches all exceptions to return `0`; the demo's `MOON` case shows this.
-- **<u>Tests to replace:</u>** the inherited tests mock `ShippingCalculator` itself and use weak assertions (`assertTrue(cost > 0)`, `assertNotNull(double)`). Test real behaviour instead.
+- **<u>Extensibility:</u>** zone rules live in `pricing` as `ZonePolicy` implementations registered in `ZonePolicyRegistry`; adding a zone means adding a policy, not editing `ShippingCalculator`.
+- **<u>Structure:</u>** `validation`, `exception`, and `pricing` packages; dependencies are constructor-injected. Keep failures explicit — no catch-all returning a fake price.
+- **<u>Test approach:</u>** use injected seams and assert real behaviour and exact values. Never mock the system under test or use `assertNotNull` on primitives.
 - **<u>Domain strings:</u>** known zones are uppercase `DOMESTIC`, `REGIONAL`, `INTERNATIONAL`; `EXPRESS` is the only service-level modifier.
+- **<u>Written work:</u>** `ANALYSIS.md` and `RATIONALE.md` are the sources of truth for the review and refactoring decisions.
