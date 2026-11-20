@@ -1,39 +1,53 @@
 package com.tidewater.freight;
 
-public class ShippingCalculator {
+import com.tidewater.freight.exception.InvalidShipmentException;
+import com.tidewater.freight.validation.ShipmentValidator;
+import com.tidewater.freight.validation.ValidationError;
 
-    // The calculator makes its own rate source, so callers and tests cannot give it another.
-    private final RateRepository repository = new InMemoryRateRepository();
+import java.util.List;
+import java.util.Objects;
 
-    public double calculateCost(String zone, double weightKg, String serviceLevel) {
-        try {
-            double rate = repository.findRate(zone);
-            double cost = rate * weightKg;
+public final class ShippingCalculator {
 
-            // zone-specific fees
-            if (zone.equals("DOMESTIC")) {
-                // no extra fee
-            } else if (zone.equals("REGIONAL")) {
-                cost = cost + 10; // handling fee
-            } else if (zone.equals("INTERNATIONAL")) {
-                cost = cost + 25; // customs handling
-            }
+    private static final double REGIONAL_HANDLING_FEE = 10.0;
+    private static final double INTERNATIONAL_CUSTOMS_FEE = 25.0;
+    private static final double HEAVY_WEIGHT_THRESHOLD_KG = 30.0;
+    private static final double HEAVY_SURCHARGE = 20.0;
+    private static final double EXPRESS_MULTIPLIER = 1.5;
 
-            // heavy-item surcharge
-            if (weightKg > 30) {
-                cost = cost + 20;
-            }
+    private final RateRepository repository;
+    private final ShipmentValidator validator;
 
-            // express costs more
-            if (serviceLevel.equals("EXPRESS")) {
-                cost = cost * 1.5;
-            }
+    public ShippingCalculator(RateRepository repository, ShipmentValidator validator) {
+        this.repository = Objects.requireNonNull(repository, "repository");
+        this.validator = Objects.requireNonNull(validator, "validator");
+    }
 
-            System.out.println("Shipping " + zone + " (" + weightKg + "kg, " + serviceLevel + "): GHS " + cost);
-            return cost;
-        } catch (Exception e) {
-            // could not work out a rate (for example an unknown zone) - return zero
-            return 0;
+    public double calculateCost(ShipmentRequest request) {
+        Objects.requireNonNull(request, "request");
+
+        List<ValidationError> errors = validator.validate(request);
+        if (!errors.isEmpty()) {
+            throw new InvalidShipmentException(errors);
         }
+
+        double rate = repository.findRate(request.zone());
+        double cost = rate * request.weightKg();
+
+        if (request.zone().equals("REGIONAL")) {
+            cost += REGIONAL_HANDLING_FEE;
+        } else if (request.zone().equals("INTERNATIONAL")) {
+            cost += INTERNATIONAL_CUSTOMS_FEE;
+        }
+
+        if (request.weightKg() > HEAVY_WEIGHT_THRESHOLD_KG) {
+            cost += HEAVY_SURCHARGE;
+        }
+
+        if (request.serviceLevel().equals("EXPRESS")) {
+            cost *= EXPRESS_MULTIPLIER;
+        }
+
+        return cost;
     }
 }
