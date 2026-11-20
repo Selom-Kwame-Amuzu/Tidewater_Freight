@@ -4,6 +4,7 @@ import com.tidewater.freight.TestFixtures.FixedZonePolicy;
 import com.tidewater.freight.exception.InvalidShipmentException;
 import com.tidewater.freight.pricing.CostModifier;
 import com.tidewater.freight.pricing.ZonePolicyProvider;
+import com.tidewater.freight.validation.ShipmentValidator;
 import com.tidewater.freight.validation.ValidationError;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,6 +37,18 @@ class ShippingCalculatorTest {
     void setUp() {
         calculator = new ShippingCalculator(
                 policies, TestFixtures.defaultValidator(), TestFixtures.defaultModifiers());
+    }
+
+    @Test
+    void rejectsNullCollaborators() {
+        ShipmentValidator validator = TestFixtures.defaultValidator();
+
+        assertThrows(NullPointerException.class,
+                () -> new ShippingCalculator(null, validator, TestFixtures.defaultModifiers()));
+        assertThrows(NullPointerException.class,
+                () -> new ShippingCalculator(policies, null, TestFixtures.defaultModifiers()));
+        assertThrows(NullPointerException.class,
+                () -> new ShippingCalculator(policies, validator, null));
     }
 
     @Test

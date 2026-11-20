@@ -1,54 +1,98 @@
 # Tidewater Freight — Shipping Cost Service
 
-This is the starter repository for the **Code Quality & Testing** applied lab.
-Read the lab brief alongside this repository; it explains the business, what you
-are being asked to deliver, and how your work is assessed.
+A small, reviewed shipping-cost service that calculates a quote from shipment
+weight, destination zone, and service level. The inherited AI-generated version
+was refactored for Clean Code and SOLID, given explicit failure handling, and
+covered by a test suite that asserts real behaviour.
 
-## What this is
+## What it does
 
-A small shipping-cost service that was written quickly with an AI assistant, together with the
-tests it produced. Everything compiles and the tests pass, so at a glance it
-looks finished. Your job is to bring it up to AmaliTech standard: judge what is
-actually wrong with the code **and** its tests, refactor it, make it genuinely
-testable, handle its failures properly, and replace the tests that only look
-like tests.
+`ShippingCalculator.calculateCost(ShipmentRequest)` validates the request, looks
+up the zone's rate rule, computes the base cost, and applies price modifiers in
+order:
 
-## Running it
+| Zone | Rate / kg | Handling fee |
+| --- | --- | --- |
+| `DOMESTIC` | 5.0 | 0.0 |
+| `REGIONAL` | 8.0 | 10.0 |
+| `INTERNATIONAL` | 15.0 | 25.0 |
 
-You need JDK 21 and Maven.
+- Weights must be finite and greater than zero; zones must be non-blank; service
+  levels are `STANDARD` (×1.0) or `EXPRESS` (×1.5).
+- Heavy surcharge: `+20` above 30 kg, applied **before** the service multiplier.
+- Example: `INTERNATIONAL`, 40 kg, `EXPRESS` → `(40 × 15 + 25 + 20) × 1.5 = 967.5`.
 
-**See the service run (a small demo, no tests):**
+Invalid input raises `InvalidShipmentException` (with typed `ValidationError`
+codes); an unknown zone raises `UnknownZoneException`. No failure is converted
+into a fake price.
+
+## Structure
+
+```text
+com.tidewater.freight
+├── ShippingCalculator.java      # orchestration only: validate → price → modify
+├── ShipmentRequest.java         # input record
+├── ServiceLevel.java            # allowed levels and their multipliers
+├── Demo.java                    # wiring and boundary error reporting
+├── pricing/
+│   ├── ZonePolicy / ZonePolicyProvider / ZonePolicyRegistry
+│   ├── DomesticZonePolicy / RegionalZonePolicy / InternationalZonePolicy
+│   ├── CostModifier
+│   ├── HeavyWeightSurcharge / ServiceLevelMultiplier
+├── validation/
+│   ├── ShipmentRule / ShipmentValidator / ValidationError
+│   └── ZoneRequiredRule / WeightRule / ServiceLevelRule
+└── exception/
+    ├── ShippingCalculationException
+    ├── InvalidShipmentException
+    └── UnknownZoneException
+```
+
+All collaborators are constructor-injected; nothing is hard-wired inside the
+calculator.
+
+### Adding a new rule
+
+- **New zone:** add a `ZonePolicy` implementation and register it in `Demo`.
+  `ShippingCalculator` is not edited.
+- **New price adjustment:** add a `CostModifier` and place it in the ordered
+  list in `Demo`. Order matters; the calculator just folds the list.
+- **New service level:** add a constant to `ServiceLevel`. Validation and
+  pricing both derive from the enum, so no other production class changes.
+- **New validation check:** add a `ShipmentRule` to the validator's list.
+
+## Running and verifying
+
+JDK 21 and Maven are required; there is no wrapper script.
 
 ```bash
+# See the service run (no tests)
 mvn compile
 mvn exec:java -Dexec.mainClass=com.tidewater.freight.Demo
-```
 
-**Run the existing tests:**
-
-```bash
+# Run the 91-test suite
 mvn test
+
+# Coverage report: target/site/jacoco/index.html
+mvn verify
+
+# Mutation report: target/pit-reports/index.html
+mvn test-compile org.pitest:pitest-maven:mutationCoverage
 ```
 
-**Measure your tests** (coverage and mutation testing are already set up):
+Expected demo output:
 
-```bash
-mvn verify                                                  # tests + JaCoCo report: target/site/jacoco/index.html
-mvn test-compile org.pitest:pitest-maven:mutationCoverage   # PIT report: target/pit-reports/index.html
+```text
+Result DOMESTIC 10.0kg STANDARD -> 50.0
+Result INTERNATIONAL 40.0kg EXPRESS -> 967.5
+Result MOON 10.0kg STANDARD -> FAILED: Unknown shipping zone: MOON
 ```
 
-Run the demo and the tests before you change anything. Note what the demo prints for an unknown zone,
-and look carefully at whether the tests that pass actually prove anything.
-
-## What to hand in
-
-See the lab brief for the full list: your written analysis (of the code and the
-tests), the refactored code, robust exception handling, a real test suite, a
-short rationale, and one improvement beyond the brief. You will talk through your
-work in a live review.
+The suite is a two-layer pyramid: a broad unit base, a Mockito-seam layer for
+orchestration, and a small real-collaborator integration layer. There are no
+end-to-end tests; the rationale explains why.
 
 ## Written work
 
-- [ANALYSIS.md](ANALYSIS.md) — pre-refactor review of the inherited code and tests.
-- [RATIONALE.md](RATIONALE.md) — refactoring decisions, what was kept/fixed/rewritten, and the improvement beyond the brief.
-
+- [ANALYSIS.md](ANALYSIS.md) — pre-refactor review of the inherited code and tests, with the most serious problem ranked first.
+- [RATIONALE.md](RATIONALE.md) — refactoring decisions, what was kept/fixed/rewritten, how the design absorbs new rules, test strategy, and the improvement beyond the brief.

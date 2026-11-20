@@ -58,8 +58,9 @@ class ShipmentValidatorTest {
         ShipmentValidator validator = new ShipmentValidator(List.of(first, second));
         ShipmentRequest request = new ShipmentRequest("DOMESTIC", 10, "STANDARD");
 
-        validator.validate(request);
+        List<ValidationError> errors = validator.validate(request);
 
+        assertEquals(List.of(ValidationError.ZONE_REQUIRED), errors);
         var order = inOrder(first, second);
         order.verify(first).check(request);
         order.verify(second).check(request);
