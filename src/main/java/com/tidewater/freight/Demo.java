@@ -2,8 +2,10 @@ package com.tidewater.freight;
 
 import com.tidewater.freight.exception.ShippingCalculationException;
 import com.tidewater.freight.pricing.DomesticZonePolicy;
+import com.tidewater.freight.pricing.HeavyWeightSurcharge;
 import com.tidewater.freight.pricing.InternationalZonePolicy;
 import com.tidewater.freight.pricing.RegionalZonePolicy;
+import com.tidewater.freight.pricing.ServiceLevelMultiplier;
 import com.tidewater.freight.pricing.ZonePolicyProvider;
 import com.tidewater.freight.pricing.ZonePolicyRegistry;
 import com.tidewater.freight.validation.ServiceLevelRule;
@@ -24,7 +26,8 @@ public class Demo {
                 new ShipmentValidator(List.of(
                         new ZoneRequiredRule(),
                         new WeightRule(),
-                        new ServiceLevelRule())));
+                        new ServiceLevelRule())),
+                List.of(new HeavyWeightSurcharge(), new ServiceLevelMultiplier()));
 
         printResult(calculator, "DOMESTIC", 10, "STANDARD");
         printResult(calculator, "INTERNATIONAL", 40, "EXPRESS");

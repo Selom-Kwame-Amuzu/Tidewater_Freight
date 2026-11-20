@@ -25,7 +25,7 @@ class ShippingPricingIntegrationTest {
     private static final double EPS = 1e-9;
 
     private final ShippingCalculator calculator = new ShippingCalculator(
-            TestFixtures.defaultRegistry(), TestFixtures.defaultValidator());
+            TestFixtures.defaultRegistry(), TestFixtures.defaultValidator(), TestFixtures.defaultModifiers());
 
     static Stream<Arguments> pricedShipments() {
         return Stream.of(
@@ -78,7 +78,7 @@ class ShippingPricingIntegrationTest {
                 new InternationalZonePolicy()));
         policies.add(new FixedZonePolicy("MOON", 12.0, 3.0));
         ShippingCalculator extended = new ShippingCalculator(
-                new ZonePolicyRegistry(policies), TestFixtures.defaultValidator());
+                new ZonePolicyRegistry(policies), TestFixtures.defaultValidator(), TestFixtures.defaultModifiers());
 
         assertEquals(123.0,
                 extended.calculateCost(new ShipmentRequest("MOON", 10, "STANDARD")), EPS);

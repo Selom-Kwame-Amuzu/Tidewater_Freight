@@ -2,6 +2,7 @@ package com.tidewater.freight;
 
 import com.tidewater.freight.TestFixtures.FixedZonePolicy;
 import com.tidewater.freight.exception.InvalidShipmentException;
+import com.tidewater.freight.pricing.CostModifier;
 import com.tidewater.freight.pricing.ZonePolicyProvider;
 import com.tidewater.freight.validation.ValidationError;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,6 +25,7 @@ import static org.mockito.Mockito.*;
 class ShippingCalculatorTest {
 
     private static final double EPS = 1e-9;
+    private static final ShipmentRequest REQUEST = new ShipmentRequest("DOMESTIC", 10, "STANDARD");
 
     @Mock
     private ZonePolicyProvider policies;
@@ -32,14 +34,15 @@ class ShippingCalculatorTest {
 
     @BeforeEach
     void setUp() {
-        calculator = new ShippingCalculator(policies, TestFixtures.defaultValidator());
+        calculator = new ShippingCalculator(
+                policies, TestFixtures.defaultValidator(), TestFixtures.defaultModifiers());
     }
 
     @Test
     void calculatesDomesticStandardCostExactly() {
         when(policies.find("DOMESTIC")).thenReturn(new FixedZonePolicy("DOMESTIC", 5.0, 0.0));
 
-        assertEquals(50.0, calculator.calculateCost(new ShipmentRequest("DOMESTIC", 10, "STANDARD")), EPS);
+        assertEquals(50.0, calculator.calculateCost(REQUEST), EPS);
     }
 
     @Test
@@ -57,18 +60,20 @@ class ShippingCalculatorTest {
     }
 
     @Test
-    void appliesExpressMultiplierWithoutSurcharges() {
+    void appliesEveryModifierInOrder() {
         when(policies.find("DOMESTIC")).thenReturn(new FixedZonePolicy("DOMESTIC", 5.0, 0.0));
+        CostModifier first = mock(CostModifier.class);
+        CostModifier second = mock(CostModifier.class);
+        when(first.apply(50.0, REQUEST)).thenReturn(60.0);
+        when(second.apply(60.0, REQUEST)).thenReturn(90.0);
+        ShippingCalculator withCustomModifiers = new ShippingCalculator(
+                policies, TestFixtures.defaultValidator(), List.of(first, second));
 
-        assertEquals(75.0, calculator.calculateCost(new ShipmentRequest("DOMESTIC", 10, "EXPRESS")), EPS);
-    }
+        assertEquals(90.0, withCustomModifiers.calculateCost(REQUEST), EPS);
 
-    @Test
-    void heavySurchargeStartsAboveThirtyKilograms() {
-        when(policies.find("REGIONAL")).thenReturn(new FixedZonePolicy("REGIONAL", 8.0, 10.0));
-
-        assertEquals(250.0, calculator.calculateCost(new ShipmentRequest("REGIONAL", 30, "STANDARD")), EPS);
-        assertEquals(278.0, calculator.calculateCost(new ShipmentRequest("REGIONAL", 31, "STANDARD")), EPS);
+        var order = inOrder(first, second);
+        order.verify(first).apply(50.0, REQUEST);
+        order.verify(second).apply(60.0, REQUEST);
     }
 
     @Test
@@ -77,7 +82,7 @@ class ShippingCalculatorTest {
         when(policies.find("DOMESTIC")).thenThrow(failure);
 
         IllegalStateException thrown = assertThrows(IllegalStateException.class,
-                () -> calculator.calculateCost(new ShipmentRequest("DOMESTIC", 10, "STANDARD")));
+                () -> calculator.calculateCost(REQUEST));
 
         assertSame(failure, thrown);
     }

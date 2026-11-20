@@ -1,6 +1,7 @@
 package com.tidewater.freight;
 
 import com.tidewater.freight.exception.InvalidShipmentException;
+import com.tidewater.freight.pricing.CostModifier;
 import com.tidewater.freight.pricing.ZonePolicy;
 import com.tidewater.freight.pricing.ZonePolicyProvider;
 import com.tidewater.freight.validation.ShipmentValidator;
@@ -11,16 +12,15 @@ import java.util.Objects;
 
 public final class ShippingCalculator {
 
-    private static final double HEAVY_WEIGHT_THRESHOLD_KG = 30.0;
-    private static final double HEAVY_SURCHARGE = 20.0;
-    private static final double EXPRESS_MULTIPLIER = 1.5;
-
     private final ZonePolicyProvider policies;
     private final ShipmentValidator validator;
+    private final List<CostModifier> modifiers;
 
-    public ShippingCalculator(ZonePolicyProvider policies, ShipmentValidator validator) {
+    public ShippingCalculator(ZonePolicyProvider policies, ShipmentValidator validator,
+                              List<CostModifier> modifiers) {
         this.policies = Objects.requireNonNull(policies, "policies");
         this.validator = Objects.requireNonNull(validator, "validator");
+        this.modifiers = List.copyOf(modifiers);
     }
 
     public double calculateCost(ShipmentRequest request) {
@@ -34,12 +34,8 @@ public final class ShippingCalculator {
         ZonePolicy policy = policies.find(request.zone());
         double cost = policy.ratePerKg() * request.weightKg() + policy.handlingFee();
 
-        if (request.weightKg() > HEAVY_WEIGHT_THRESHOLD_KG) {
-            cost += HEAVY_SURCHARGE;
-        }
-
-        if (request.serviceLevel().equals("EXPRESS")) {
-            cost *= EXPRESS_MULTIPLIER;
+        for (CostModifier modifier : modifiers) {
+            cost = modifier.apply(cost, request);
         }
 
         return cost;
