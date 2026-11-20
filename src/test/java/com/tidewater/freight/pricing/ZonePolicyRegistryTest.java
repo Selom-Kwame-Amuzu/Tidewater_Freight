@@ -1,5 +1,6 @@
 package com.tidewater.freight.pricing;
 
+import com.tidewater.freight.TestFixtures.FixedZonePolicy;
 import com.tidewater.freight.exception.UnknownZoneException;
 import org.junit.jupiter.api.Test;
 
@@ -8,9 +9,6 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ZonePolicyRegistryTest {
-
-    private record FixedZonePolicy(String zone, double ratePerKg, double handlingFee) implements ZonePolicy {
-    }
 
     @Test
     void findsRegisteredPolicies() {
@@ -47,5 +45,10 @@ class ZonePolicyRegistryTest {
                 new FixedZonePolicy("DOMESTIC", 6.0, 0.0));
 
         assertThrows(IllegalStateException.class, () -> new ZonePolicyRegistry(policies));
+    }
+
+    @Test
+    void rejectsNullPolicyList() {
+        assertThrows(NullPointerException.class, () -> new ZonePolicyRegistry(null));
     }
 }

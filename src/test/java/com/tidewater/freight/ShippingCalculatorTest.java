@@ -1,18 +1,9 @@
 package com.tidewater.freight;
 
+import com.tidewater.freight.TestFixtures.FixedZonePolicy;
 import com.tidewater.freight.exception.InvalidShipmentException;
-import com.tidewater.freight.exception.UnknownZoneException;
-import com.tidewater.freight.pricing.DomesticZonePolicy;
-import com.tidewater.freight.pricing.InternationalZonePolicy;
-import com.tidewater.freight.pricing.RegionalZonePolicy;
-import com.tidewater.freight.pricing.ZonePolicy;
 import com.tidewater.freight.pricing.ZonePolicyProvider;
-import com.tidewater.freight.pricing.ZonePolicyRegistry;
-import com.tidewater.freight.validation.ServiceLevelRule;
-import com.tidewater.freight.validation.ShipmentValidator;
 import com.tidewater.freight.validation.ValidationError;
-import com.tidewater.freight.validation.WeightRule;
-import com.tidewater.freight.validation.ZoneRequiredRule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,9 +25,6 @@ class ShippingCalculatorTest {
 
     private static final double EPS = 1e-9;
 
-    private record FixedZonePolicy(String zone, double ratePerKg, double handlingFee) implements ZonePolicy {
-    }
-
     @Mock
     private ZonePolicyProvider policies;
 
@@ -44,21 +32,7 @@ class ShippingCalculatorTest {
 
     @BeforeEach
     void setUp() {
-        calculator = new ShippingCalculator(policies, defaultValidator());
-    }
-
-    private static ShipmentValidator defaultValidator() {
-        return new ShipmentValidator(List.of(
-                new ZoneRequiredRule(),
-                new WeightRule(),
-                new ServiceLevelRule()));
-    }
-
-    private static ZonePolicyRegistry defaultRegistry() {
-        return new ZonePolicyRegistry(List.of(
-                new DomesticZonePolicy(),
-                new RegionalZonePolicy(),
-                new InternationalZonePolicy()));
+        calculator = new ShippingCalculator(policies, TestFixtures.defaultValidator());
     }
 
     @Test
@@ -98,51 +72,20 @@ class ShippingCalculatorTest {
     }
 
     @Test
-    void worksWithTheRealPolicyRegistry() {
-        ShippingCalculator real = new ShippingCalculator(defaultRegistry(), defaultValidator());
-
-        assertEquals(50.0, real.calculateCost(new ShipmentRequest("DOMESTIC", 10, "STANDARD")), EPS);
-        assertEquals(50.0, real.calculateCost(new ShipmentRequest("REGIONAL", 5, "STANDARD")), EPS);
-        assertEquals(967.5, real.calculateCost(new ShipmentRequest("INTERNATIONAL", 40, "EXPRESS")), EPS);
-    }
-
-    @Test
-    void newZonePolicyWorksWithoutChangingTheCalculator() {
-        ZonePolicy moon = new FixedZonePolicy("MOON", 12.0, 3.0);
-        ZonePolicyProvider extended = zone -> {
-            if (zone.equals("MOON")) {
-                return moon;
-            }
-            return defaultRegistry().find(zone);
-        };
-        ShippingCalculator real = new ShippingCalculator(extended, defaultValidator());
-
-        assertEquals(123.0, real.calculateCost(new ShipmentRequest("MOON", 10, "STANDARD")), EPS);
-    }
-
-    @Test
-    void unknownZoneThrowsInsteadOfReturningZero() {
-        ShippingCalculator real = new ShippingCalculator(defaultRegistry(), defaultValidator());
-
-        UnknownZoneException ex = assertThrows(UnknownZoneException.class,
-                () -> real.calculateCost(new ShipmentRequest("MOON", 10, "STANDARD")));
-        assertEquals("MOON", ex.zone());
-    }
-
-    @Test
     void providerFailurePropagatesWithItsCause() {
         IllegalStateException failure = new IllegalStateException("policy service unavailable");
         when(policies.find("DOMESTIC")).thenThrow(failure);
 
         IllegalStateException thrown = assertThrows(IllegalStateException.class,
                 () -> calculator.calculateCost(new ShipmentRequest("DOMESTIC", 10, "STANDARD")));
+
         assertSame(failure, thrown);
     }
 
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {"   "})
-    void blankZoneIsRejectedBeforeRepositoryIsCalled(String zone) {
+    void blankZoneIsRejectedBeforeProviderIsCalled(String zone) {
         InvalidShipmentException ex = assertThrows(InvalidShipmentException.class,
                 () -> calculator.calculateCost(new ShipmentRequest(zone, 10, "STANDARD")));
 
@@ -156,7 +99,7 @@ class ShippingCalculatorTest {
 
     @ParameterizedTest
     @MethodSource("invalidWeights")
-    void invalidWeightIsRejected(double weight) {
+    void invalidWeightIsRejectedBeforeProviderIsCalled(double weight) {
         InvalidShipmentException ex = assertThrows(InvalidShipmentException.class,
                 () -> calculator.calculateCost(new ShipmentRequest("DOMESTIC", weight, "STANDARD")));
 
@@ -167,7 +110,7 @@ class ShippingCalculatorTest {
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {" ", "express", "PRIORITY"})
-    void invalidServiceLevelIsRejected(String serviceLevel) {
+    void invalidServiceLevelIsRejectedBeforeProviderIsCalled(String serviceLevel) {
         InvalidShipmentException ex = assertThrows(InvalidShipmentException.class,
                 () -> calculator.calculateCost(new ShipmentRequest("DOMESTIC", 10, serviceLevel)));
 
@@ -182,5 +125,6 @@ class ShippingCalculatorTest {
 
         assertEquals(List.of(ValidationError.ZONE_REQUIRED, ValidationError.WEIGHT_INVALID,
                 ValidationError.SERVICE_LEVEL_INVALID), ex.errors());
+        verifyNoInteractions(policies);
     }
 }

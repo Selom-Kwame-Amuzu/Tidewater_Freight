@@ -28,5 +28,7 @@
 - **<u>Extensibility:</u>** zone rules live in `pricing` as `ZonePolicy` implementations registered in `ZonePolicyRegistry`; adding a zone means adding a policy, not editing `ShippingCalculator`.
 - **<u>Structure:</u>** `validation`, `exception`, and `pricing` packages; dependencies are constructor-injected. Keep failures explicit — no catch-all returning a fake price.
 - **<u>Test approach:</u>** use injected seams and assert real behaviour and exact values. Never mock the system under test or use `assertNotNull` on primitives.
+- **<u>Test pyramid:</u>** a large unit base, a smaller Mockito-seam layer, and a small real-collaborator integration layer. No end-to-end/stdout tests; see `RATIONALE.md`.
+- **<u>Mockito scope:</u>** mock only collaborators whose behaviour must be controlled (e.g. `ZonePolicyProvider` failure injection, `ShipmentRule` delegation order); use real objects for policies, records, and enums.
 - **<u>Domain strings:</u>** known zones are uppercase `DOMESTIC`, `REGIONAL`, `INTERNATIONAL`; `EXPRESS` is the only service-level modifier.
 - **<u>Written work:</u>** `ANALYSIS.md` and `RATIONALE.md` are the sources of truth for the review and refactoring decisions.

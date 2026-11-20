@@ -12,7 +12,7 @@
 
 Zone knowledge now lives in one place: a `ZonePolicy` implementation containing the zone name, rate per kg, and handling fee. `ZonePolicyRegistry` maps zone strings to policies, and `ShippingCalculator` depends only on the `ZonePolicyProvider` interface.
 
-Adding the announced new zone means adding a new policy and registering it. `ShippingCalculator` is not edited. The `newZonePolicyWorksWithoutChangingTheCalculator` test proves this by injecting a `MOON` policy and asserting the resulting cost.
+Adding the announced new zone means adding a new policy and registering it. `ShippingCalculator` is not edited. The `newPolicyCanBeRegisteredWithoutChangingTheCalculator` integration test proves this by adding a `MOON` policy to the registry and asserting the resulting cost.
 
 ## <u>What happened to the inherited code</u>
 
@@ -30,9 +30,23 @@ Adding the announced new zone means adding a new policy and registering it. `Shi
 
 A supporting safety guard is `List.copyOf` in `ShipmentValidator`: the rule list and returned errors are immutable, so callers cannot mutate validation behaviour or results after construction.
 
+## <u>Test strategy (test pyramid)</u>
+
+The suite is deliberately two-layered, with no end-to-end tests.
+
+| Layer | Tests | What it proves |
+| --- | --- | --- |
+| **<u>Unit base (42):</u>** `ZoneRequiredRuleTest`, `WeightRuleTest`, `ServiceLevelRuleTest`, `ZonePolicyTest`, `ShipmentValidatorTest`, `ZonePolicyRegistryTest` | Each rule and policy in isolation: null/blank/lowercase/unknown strings, `0`/negative/`NaN`/`±∞`/valid weights, exact rate and fee values, rule ordering, immutability, duplicate-zone rejection. | Every leaf component honours its own contract, so a failure points to one class. |
+| **<u>Unit with injected seam (20):</u>** `ShippingCalculatorTest` | Calculator arithmetic with a mocked `ZonePolicyProvider`; exact costs, surcharge boundary, express multiplier, dependency-failure propagation, and `verifyNoInteractions` proving validation short-circuits before lookup. | Calculator logic in isolation without standing up real collaborators. |
+| **<u>Integration (11):</u>** `ShippingPricingIntegrationTest` | Real registry + real validator + real calculator: full zone/service matrix, 30 vs 31 kg boundary, combined surcharge and express, unknown zone, aggregated validation errors, and a policy added at runtime. | Wiring is correct and the domain behaves as a whole. |
+
+Mockito is used only for collaborators whose behaviour is worth controlling: `ZonePolicyProvider` (failure injection and interaction verification) and `ShipmentRule` (delegation order in `ShipmentValidator`). The system under test is never mocked, and cheap value types, enums, and `ZonePolicy` implementations are always real. A shared `TestFixtures` helper removes duplicated policy/validator wiring between test classes.
+
+**<u>Deliberate exclusion:</u>** there is no test for `Demo`. Capturing stdout to assert console formatting would test presentation, not behaviour, so the 5 PIT mutants in `Demo.main`/`printResult` remain uncovered by design. All 30 mutants in the domain classes are covered.
+
 ## <u>Verification</u>
 
-- `mvn test` — 30 tests passing.
-- `mvn verify` — JaCoCo report at `target/site/jacoco/index.html`.
-- PIT mutation coverage — 30 of 35 mutants killed (86%), 100% test strength on covered mutants; subpackages are included by the existing `com.tidewater.freight.*` target.
+- `mvn test` — 73 tests passing, 0 failures/errors.
+- `mvn verify` — JaCoCo report at `target/site/jacoco/index.html`; 15 classes analysed.
+- PIT mutation coverage — 30 of 35 mutants killed (86%) with 100% test strength on covered mutants. The 5 uncovered mutants are confined to `Demo` console wiring (see above).
 - Demo — `MOON` now reports a failure instead of printing `0.0`.

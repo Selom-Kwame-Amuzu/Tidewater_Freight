@@ -8,6 +8,10 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class ShipmentValidatorTest {
 
@@ -43,5 +47,35 @@ class ShipmentValidatorTest {
 
         assertEquals(List.of(ValidationError.ZONE_REQUIRED),
                 validator.validate(new ShipmentRequest(null, 10, "STANDARD")));
+    }
+
+    @Test
+    void delegatesToEveryRuleInOrder() {
+        ShipmentRule first = mock(ShipmentRule.class);
+        ShipmentRule second = mock(ShipmentRule.class);
+        when(first.check(any())).thenReturn(Optional.of(ValidationError.ZONE_REQUIRED));
+        when(second.check(any())).thenReturn(Optional.empty());
+        ShipmentValidator validator = new ShipmentValidator(List.of(first, second));
+        ShipmentRequest request = new ShipmentRequest("DOMESTIC", 10, "STANDARD");
+
+        validator.validate(request);
+
+        var order = inOrder(first, second);
+        order.verify(first).check(request);
+        order.verify(second).check(request);
+    }
+
+    @Test
+    void noRulesMeansNoViolations() {
+        ShipmentValidator validator = new ShipmentValidator(List.of());
+
+        assertTrue(validator.validate(new ShipmentRequest(null, -1, null)).isEmpty());
+    }
+
+    @Test
+    void rejectsNullRequest() {
+        ShipmentValidator validator = new ShipmentValidator(List.of());
+
+        assertThrows(NullPointerException.class, () -> validator.validate(null));
     }
 }
