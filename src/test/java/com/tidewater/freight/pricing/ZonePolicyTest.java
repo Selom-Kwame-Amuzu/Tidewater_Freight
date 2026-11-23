@@ -21,9 +21,19 @@ class ZonePolicyTest {
 
     @ParameterizedTest
     @MethodSource("allZonePolicies")
-    void ownsTheCompleteZoneRule(ZonePolicy policy, String zone, double rate, double handlingFee) {
+    void reportsItsZone(ZonePolicy policy, String zone, double rate, double handlingFee) {
         assertEquals(zone, policy.zone());
+    }
+
+    @ParameterizedTest
+    @MethodSource("allZonePolicies")
+    void reportsItsRatePerKg(ZonePolicy policy, String zone, double rate, double handlingFee) {
         assertEquals(rate, policy.ratePerKg(), EPS);
+    }
+
+    @ParameterizedTest
+    @MethodSource("allZonePolicies")
+    void reportsItsHandlingFee(ZonePolicy policy, String zone, double rate, double handlingFee) {
         assertEquals(handlingFee, policy.handlingFee(), EPS);
     }
 }

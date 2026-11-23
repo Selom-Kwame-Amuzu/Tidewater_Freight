@@ -10,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -39,16 +40,21 @@ class ShippingCalculatorTest {
                 policies, TestFixtures.defaultValidator(), TestFixtures.defaultModifiers());
     }
 
-    @Test
-    void rejectsNullCollaborators() {
+    static Stream<Arguments> nullCollaboratorSets() {
         ShipmentValidator validator = TestFixtures.defaultValidator();
+        List<CostModifier> modifiers = TestFixtures.defaultModifiers();
+        return Stream.of(
+                Arguments.of(null, validator, modifiers),
+                Arguments.of(TestFixtures.defaultRegistry(), null, modifiers),
+                Arguments.of(TestFixtures.defaultRegistry(), validator, null));
+    }
 
+    @ParameterizedTest
+    @MethodSource("nullCollaboratorSets")
+    void rejectsNullCollaborators(ZonePolicyProvider provider, ShipmentValidator validator,
+                                  List<CostModifier> modifiers) {
         assertThrows(NullPointerException.class,
-                () -> new ShippingCalculator(null, validator, TestFixtures.defaultModifiers()));
-        assertThrows(NullPointerException.class,
-                () -> new ShippingCalculator(policies, null, TestFixtures.defaultModifiers()));
-        assertThrows(NullPointerException.class,
-                () -> new ShippingCalculator(policies, validator, null));
+                () -> new ShippingCalculator(provider, validator, modifiers));
     }
 
     @Test

@@ -3,6 +3,8 @@ package com.tidewater.freight.pricing;
 import com.tidewater.freight.TestFixtures.FixedZonePolicy;
 import com.tidewater.freight.exception.UnknownZoneException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.util.List;
 
@@ -10,14 +12,14 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ZonePolicyRegistryTest {
 
-    @Test
-    void findsRegisteredPolicies() {
+    @ParameterizedTest
+    @CsvSource({"DOMESTIC,5.0,0.0", "REGIONAL,8.0,10.0"})
+    void findsRegisteredPolicies(String zone, double ratePerKg, double handlingFee) {
         ZonePolicyRegistry registry = new ZonePolicyRegistry(List.of(
                 new FixedZonePolicy("DOMESTIC", 5.0, 0.0),
                 new FixedZonePolicy("REGIONAL", 8.0, 10.0)));
 
-        assertEquals(5.0, registry.find("DOMESTIC").ratePerKg());
-        assertEquals(10.0, registry.find("REGIONAL").handlingFee());
+        assertEquals(new FixedZonePolicy(zone, ratePerKg, handlingFee), registry.find(zone));
     }
 
     @Test

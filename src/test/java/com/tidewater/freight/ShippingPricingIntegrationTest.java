@@ -12,6 +12,7 @@ import com.tidewater.freight.validation.ValidationError;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.ArrayList;
@@ -45,12 +46,11 @@ class ShippingPricingIntegrationTest {
                 calculator.calculateCost(new ShipmentRequest(zone, weight, serviceLevel)), EPS);
     }
 
-    @Test
-    void appliesHeavySurchargeOnlyAboveThreshold() {
-        assertEquals(250.0,
-                calculator.calculateCost(new ShipmentRequest("REGIONAL", 30, "STANDARD")), EPS);
-        assertEquals(278.0,
-                calculator.calculateCost(new ShipmentRequest("REGIONAL", 31, "STANDARD")), EPS);
+    @ParameterizedTest
+    @CsvSource({"30,250.0", "31,278.0"})
+    void appliesHeavySurchargeOnlyAboveThreshold(double weightKg, double expectedCost) {
+        assertEquals(expectedCost,
+                calculator.calculateCost(new ShipmentRequest("REGIONAL", weightKg, "STANDARD")), EPS);
     }
 
     @Test

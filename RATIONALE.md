@@ -46,17 +46,19 @@ The suite is deliberately two-layered, with no end-to-end tests.
 
 | Layer | Tests | What it proves |
 | --- | --- | --- |
-| **<u>Unit base (60):</u>** `ZoneRequiredRuleTest`, `WeightRuleTest`, `ServiceLevelRuleTest`, `ServiceLevelTest`, `ZonePolicyTest`, `HeavyWeightSurchargeTest`, `ServiceLevelMultiplierTest`, `ShipmentValidatorTest`, `ZonePolicyRegistryTest` | Each rule, enum, policy, and modifier in isolation: null/blank/lowercase/unknown strings, `0`/negative/`NaN`/`±∞`/valid weights, exact rates/fees/multipliers, the 30 kg boundary, rule ordering, immutability, duplicate-zone rejection. | Every leaf component honours its own contract, so a failure points to one class. |
-| **<u>Unit with injected seam (20):</u>** `ShippingCalculatorTest` | Calculator orchestration with a mocked `ZonePolicyProvider` and mocked `CostModifier`s; exact costs, modifier application order, dependency-failure propagation, null-guard enforcement, and `verifyNoInteractions` proving validation short-circuits before lookup. | Calculator logic in isolation without standing up real collaborators. |
-| **<u>Integration (11):</u>** `ShippingPricingIntegrationTest` | Real registry + real validator + real calculator: full zone/service matrix, 30 vs 31 kg boundary, combined surcharge and express, unknown zone, aggregated validation errors, and a policy added at runtime. | Wiring is correct and the domain behaves as a whole. |
+| **<u>Unit base (71):</u>** `ZoneRequiredRuleTest`, `WeightRuleTest`, `ServiceLevelRuleTest`, `ServiceLevelTest`, `ZonePolicyTest`, `HeavyWeightSurchargeTest`, `ServiceLevelMultiplierTest`, `ShipmentValidatorTest`, `ZonePolicyRegistryTest` | Each rule, enum, policy, and modifier in isolation: null/blank/lowercase/unknown strings, `0`/negative/`NaN`/`±∞`/valid weights, exact rates/fees/multipliers, the 30 kg boundary, rule ordering, immutability, duplicate-zone rejection. | Every leaf component honours its own contract, so a failure points to one class. |
+| **<u>Unit with injected seam (22):</u>** `ShippingCalculatorTest` | Calculator orchestration with a mocked `ZonePolicyProvider` and mocked `CostModifier`s; exact costs, modifier application order, dependency-failure propagation, null-guard enforcement, and `verifyNoInteractions` proving validation short-circuits before lookup. | Calculator logic in isolation without standing up real collaborators. |
+| **<u>Integration (12):</u>** `ShippingPricingIntegrationTest` | Real registry + real validator + real calculator: full zone/service matrix, 30 vs 31 kg boundary, combined surcharge and express, unknown zone, aggregated validation errors, and a policy added at runtime. | Wiring is correct and the domain behaves as a whole. |
 
 Mockito is used only for collaborators whose behaviour is worth controlling: `ZonePolicyProvider` (failure injection and interaction verification), `ShipmentRule` (delegation order in `ShipmentValidator`), and `CostModifier` (application order in `ShippingCalculator`). The system under test is never mocked, and value types, enums, and concrete policies/modifiers are always real. A shared `TestFixtures` helper removes duplicated policy/validator/modifier wiring between test classes.
+
+Where several asserts checked one concept (a threshold's two sides, an enum's two multipliers, a policy's three fields), the suite now uses `@ParameterizedTest` with `@CsvSource`/`@MethodSource`: one assert per case, so a failure names the exact input. Mockito order/interaction verifications stay grouped with their result assertion because the sequence has to be observed within a single invocation.
 
 **<u>Deliberate exclusion:</u>** there is no test for `Demo`. Capturing stdout to assert console formatting would test presentation, not behaviour, so the 5 PIT mutants in `Demo.main`/`printResult` remain uncovered by design. All 30 mutants in the domain classes are covered.
 
 ## <u>Verification</u>
 
-- `mvn test` — 91 tests passing, 0 failures/errors.
+- `mvn test` — 105 tests passing, 0 failures/errors.
 - `mvn verify` — JaCoCo report at `target/site/jacoco/index.html`; 18 classes analysed.
 - PIT mutation coverage — 36 of 41 mutants killed (88%) with 100% test strength on covered mutants. The 5 uncovered mutants are confined to `Demo` console wiring (see above).
 - Demo output unchanged — `50.0`, `967.5`, and `FAILED: Unknown shipping zone: MOON`.
@@ -67,4 +69,4 @@ Mockito is used only for collaborators whose behaviour is worth controlling: `Zo
 2. **Failures before structure:** typed exceptions and an ordered validation rule chain; unknown zones and bad input now fail loudly with distinct, testable types.
 3. **Separate the rules:** zone data → `ZonePolicy`; level strings and multipliers → `ServiceLevel`; weight/express adjustments → ordered `CostModifier`s. All collaborators are injected, so `ShippingCalculator` is orchestration only.
 4. **Prove extensibility:** the integration test adds a `MOON` policy at runtime and asserts the quote without editing the calculator — the exact change the business announced.
-5. **Trust the suite:** 91 tests across the pyramid, with exact-value assertions. PIT kills 36/41 mutants at 100% test strength on covered mutants; the 5 uncovered are `Demo` console wiring, excluded by choice and documented above.
+5. **Trust the suite:** 105 tests across the pyramid, with exact-value assertions. PIT kills 36/41 mutants at 100% test strength on covered mutants; the 5 uncovered are `Demo` console wiring, excluded by choice and documented above.

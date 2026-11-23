@@ -70,7 +70,7 @@ JDK 21 and Maven are required; there is no wrapper script.
 mvn compile
 mvn exec:java -Dexec.mainClass=com.tidewater.freight.Demo
 
-# Run the 91-test suite
+# Run the 105-test suite
 mvn test
 
 # Coverage report: target/site/jacoco/index.html
